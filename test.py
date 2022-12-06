@@ -1,4 +1,6 @@
 import numpy as np
+import scipy
+import pandas as pd
 
 a = []
 a.append(np.asarray([1,2,3]))
@@ -37,3 +39,26 @@ c = np.array(range(40))
 print(c[1:13])
 print(c[13:25])
 print(c[25:37])
+
+q = [1, 2, 3, 4, 5]
+w = [5, 4, 3, 2, 1]
+e = [5, 1, 2, 3, 4]
+r = [1, 2, 4, 3, 5]
+
+# r1, r2 = scipy.stats.kendalltau(q, w)
+# print(r1)
+# print(r2)
+# r1, r2 = scipy.stats.kendalltau(q, e)
+# print(r1)
+# print(r2)
+# r1, r2 = scipy.stats.kendalltau(q, r)
+# print(r1)
+# print(r2)
+#
+# gt_df = pd.read_csv("ground_truth_compare/20221206_D_similarity.csv")
+# print(gt_df["1"])
+r.remove(3)
+print(r)
+a = r.pop(1)
+print(r)
+print(a)
