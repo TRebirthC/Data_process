@@ -3,6 +3,9 @@ import os
 import pandas as pd
 import numpy as np
 import scipy.stats
+from pymoo.core.problem import Problem
+from pymoo.algorithms.soo.nonconvex.ga import GA
+from pymoo.optimize import minimize
 
 
 def data_id_2name(project_id):
@@ -382,6 +385,7 @@ def feature_selection(start, core, license, language, domain, company, user_inte
     elif base_method == "pbsa":
         used_method = 2
     feature_selected_across_tp = []
+    saved_performance = []
     for i in range(16):
         used_feature = [start[i], core[i], license[i], language[i], domain[i], company[i], user_interface[i],
                         use_database[i], localized[i], single_pl[i],
@@ -389,28 +393,118 @@ def feature_selection(start, core, license, language, domain, company, user_inte
                         max[i][used_method], std[i][used_method], sp[i][used_method], js[i][used_method]]
         used_feature = np.array(used_feature)
         used_gt_rank = gt[i][used_method]
-        feature_selected_across_tp.append(fs_run(used_feature, used_gt_rank))
+
+        class FeatureSelection(Problem):
+
+            def __init__(self):
+                super().__init__(n_var=17, n_obj=1, n_ieq_constr=0, xl=np.zeros(17, dtype=int),
+                                 xu=np.ones(17, dtype=int))
+
+            def _evaluate(self, x, out, *args, **kwargs):
+                out_F = []
+                for i in range(len(x)):
+                    selected_features = []
+                    for j in range(len(x[i])):
+                        if x[i][j] > 0.5:
+                            selected_features.append(j)
+                    if len(selected_features) == 0:
+                        out_F.append(np.inf)
+                    else:
+                        temp_rank = calculate_rank(selected_features, used_feature)
+                        temp_performance = calculate_performance(temp_rank, used_gt_rank, used_feature[-1])
+                        out_F.append(-temp_performance)
+                out["F"] = out_F
+
+        problem = FeatureSelection()
+        algorithm = GA(pop_size=100)
+        res = minimize(problem,
+                       algorithm,
+                       ('n_gen', 1000),
+                       seed=1,
+                       verbose=False)
+        feature_selected_across_tp.append(res.X)
+        saved_performance.append(res.F)
+
+
     saved_feature_selected_across_tp = np.array(feature_selected_across_tp)
-    print(feature_selected_across_tp)
-    save_path = "ground_truth_compare/selected_features_"+base_method+".txt"
-    np.savetxt(save_path, saved_feature_selected_across_tp, fmt='%s')
+    saved_selected = []
+    for i in range(saved_feature_selected_across_tp.shape[0]):
+        temp_save = []
+        for j in range(saved_feature_selected_across_tp.shape[1]):
+            if saved_feature_selected_across_tp[i][j] > 0.5:
+                temp_save.append(j)
+        saved_selected.append(temp_save)
+    saved_selected = np.array(saved_selected)
+    save_path1 = "ground_truth_compare/selected_features_"+base_method+".txt"
+    np.savetxt(save_path1, saved_selected, fmt='%s')
+    save_path2 = "ground_truth_compare/selected_features_" + base_method + "_performance.txt"
+    np.savetxt(save_path2, saved_performance, fmt='%s')
     return feature_selected_across_tp
 
 
+# class FeatureSelection(Problem):
+#
+#     def __init__(self):
+#         super().__init__(n_var=17, n_obj=1, n_ieq_constr=0, xl=np.zeros(self.n_var, dtype=int),
+#                          xu=np.ones(self.n_var, dtype=int))
+#
+#     def _evaluate(self, x, out, *args, **kwargs):
+#
+#         out["F"] = np.sum((x - 0.5) ** 2, axis=1)
 
 
+def load_fs_result():
+    dir1 = "ground_truth_compare/selected_features_odasc.txt"
+    dir2 = "ground_truth_compare/selected_features_odasc_performance.txt"
+    with open(dir1) as f:
+        a = f.read().splitlines()
+    sf_v = []
+    for each in a:
+        temp_sf = []
+        temp = each[1:-1]
+        temp = temp.replace(" ", "")
+        b = temp.split(',')
+        for every in b:
+            temp_sf.append(int(every))
+        sf_v.append(temp_sf)
+    sfp = np.loadtxt(dir2, dtype=str)
+    sfp_v = []
+    for each in sfp:
+        sfp_v.append(-float(each))
+    sf_v = np.array(sf_v)
+    sfp_v = np.array(sfp_v)
+
+    # calculate the feature weight
+    total_p = np.sum(sfp_v)
+    fw = []
+    for i in range(17):
+        pf_i = 0
+        for j in range(len(sf_v)):
+            if i in sf_v[j]:
+                pf_i = pf_i + sfp_v[j]
+        fw.append(pf_i/total_p)
+    fw = np.array(fw)
+    np.savetxt("ground_truth_compare/feature_weight.txt", fw)
+    return fw
 
 if __name__ == "__main__":
+    # 20221207 fs_by_ga
     Ds_dir = "ground_truth_compare/20221206_D_similarity.csv"
     start, core, license, language, domain, company, user_interface, use_database, localized, single_pl = load_Ds(Ds_dir)
     gt_dir = "ground_truth_compare/20221130_ground_truth.csv"
     gt = load_gt(gt_dir)
-    window_dir = "ground_truth_compare/20221206_window.csv"
+    window_dir = "ground_truth_compare/20221208_window.csv"
     defect, commit, median, max, std, sp, js = load_window(window_dir)
     base_method = "odasc"
     result = feature_selection(start, core, license, language, domain, company, user_interface, use_database,
                                localized, single_pl, defect, commit, median, max, std, sp, js, gt, base_method)
-    print(result)
+
+
+    # 20221208 load fs result
+    # r = load_fs_result()
+    # print(r)
+
+
     # Ds_rank, feature_rank, sp_rank, js_rank = get_rank_from_similaroty(Ds, feature, sp, js)
     # gt_valid, Ds_rank_valid, feature_rank_valid, sp_rank_valid, js_rank_valid = \
     #     delete_invalid_rank(gt, Ds_rank, feature_rank, sp_rank, js_rank, sp)

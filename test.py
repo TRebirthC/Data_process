@@ -45,9 +45,9 @@ w = [5, 4, 3, 2, 1]
 e = [5, 1, 2, 3, 4]
 r = [1, 2, 4, 3, 5]
 
-# r1, r2 = scipy.stats.kendalltau(q, w)
-# print(r1)
-# print(r2)
+r1, r2 = scipy.stats.kendalltau(q, q)
+print(r1)
+print(r2)
 # r1, r2 = scipy.stats.kendalltau(q, e)
 # print(r1)
 # print(r2)
@@ -57,8 +57,13 @@ r = [1, 2, 4, 3, 5]
 #
 # gt_df = pd.read_csv("ground_truth_compare/20221206_D_similarity.csv")
 # print(gt_df["1"])
-r.remove(3)
-print(r)
-a = r.pop(1)
-print(r)
-print(a)
+
+
+a = np.loadtxt("ground_truth_compare/feature_weight.txt")
+print(a[0])
+
+a = [1,3,5,6,8,4,9]
+a = np.array(a)
+
+b = a.argsort()[::-1]
+print(b[:3])
